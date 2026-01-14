@@ -1,0 +1,275 @@
+<?php 
+include('config.php'); 
+if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit(); }
+
+$stmtUser = $db->prepare("SELECT * FROM usuarios WHERE id = ?");
+$stmtUser->execute([$_SESSION['user_id']]);
+$user_data = $stmtUser->fetch(PDO::FETCH_ASSOC);
+
+$mi_rol = $_SESSION['rol'];
+$mi_cedula = $user_data['cedula']; 
+$mi_nombre = $_SESSION['nombre'];
+$mi_correo = $user_data['correo'];
+
+// Lógica de Filtros
+$where_panel = "WHERE 1=1"; 
+$params_panel = [];
+$filtro_cedula = $_GET['cedula'] ?? "";
+$filtro_fecha = $_GET['fecha'] ?? "";
+$filtro_nombre = $_GET['nombre_buscar'] ?? "";
+
+if ($mi_rol == 'jefe') {
+    $where_panel .= " AND s.correo_jefe = ?";
+    $params_panel[] = $mi_correo;
+}
+if (!empty($filtro_cedula)) {
+    $where_panel .= " AND s.cedula LIKE ?"; 
+    $params_panel[] = "%$filtro_cedula%";
+}
+if (!empty($filtro_fecha)) {
+    $where_panel .= " AND s.fecha_inicio = ?";
+    $params_panel[] = $filtro_fecha;
+}
+if (!empty($filtro_nombre)) {
+    $where_panel .= " AND s.empleado = ?";
+    $params_panel[] = $filtro_nombre;
+}
+
+$empleados_list = $db->query("SELECT DISTINCT nombre_completo FROM usuarios WHERE rol = 'empleado' ORDER BY nombre_completo ASC")->fetchAll();
+
+// Función para generar el listado de horas cada 10 minutos
+function obtenerOpcionesHoras() {
+    $opciones = [];
+    $periodos = ['AM', 'PM'];
+    foreach ($periodos as $p) {
+        for ($h = 0; $h < 12; $h++) {
+            $horaDisplay = ($h == 0) ? 12 : $h; 
+            for ($m = 0; $m < 60; $m += 10) {
+                $minutos = str_pad($m, 2, '0', STR_PAD_LEFT);
+                $opciones[] = "$horaDisplay:$minutos $p";
+            }
+        }
+    }
+    return $opciones;
+}
+$listadoHoras = obtenerOpcionesHoras();
+?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agro-Costa | Gestión de Permisos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
+    <style>
+        :root { --cat-yellow: #FFCD00; --cat-black: #1A1A1A; --apple-bg: #F5F5F7; --soft-gray: #86868b; }
+        body { background-color: var(--apple-bg); font-family: -apple-system, sans-serif; color: var(--cat-black); }
+        .navbar { background: var(--cat-black) !important; border-bottom: 3px solid var(--cat-yellow); }
+        .navbar-brand { font-weight: 700; color: var(--cat-yellow) !important; }
+        .card-apple { background: #ffffff; border: none; border-radius: 22px; box-shadow: 0 10px 40px rgba(0,0,0,0.03); overflow: hidden; }
+        .btn-cat { background-color: var(--cat-black); color: var(--cat-yellow); border-radius: 12px; font-weight: 600; border: none; padding: 10px 24px; transition: 0.3s; }
+        .btn-cat:hover { background-color: #000; color: #fff; }
+        .form-control, .form-select, .select2-container--bootstrap-5 .select2-selection { border-radius: 12px !important; border: 1px solid #d2d2d7 !important; background-color: #fbfbfd !important; }
+        .table thead th { background-color: var(--cat-black); color: var(--cat-yellow); font-size: 0.75rem; text-transform: uppercase; padding: 18px; border: none; }
+        .table td { padding: 18px; border-top: 1px solid #f2f2f7; font-size: 0.85rem; }
+        .badge-status { border-radius: 8px; padding: 6px 12px; font-weight: 600; }
+        label { font-weight: 600; font-size: 0.75rem; color: var(--soft-gray); margin-bottom: 5px; margin-left: 5px; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark sticky-top mb-4 py-2">
+    <div class="container-fluid px-5">
+        <a class="navbar-brand d-flex align-items-center" href="#"> AGRO-COSTA </a>
+        <div class="d-flex align-items-center">
+            <span class="text-white small me-3">Usuario: <strong><?php echo $mi_nombre; ?></strong></span>
+            <a href="logout.php" class="btn btn-sm btn-outline-warning px-3" style="border-radius: 10px;">SALIR</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid px-5">
+    <div class="row g-4">
+        <?php if($mi_rol == 'empleado'): ?>
+        <div class="col-lg-4">
+            <div class="card card-apple p-4">
+                <h5 class="fw-bold mb-4">Nueva Solicitud</h5>
+                <form action="procesar.php" method="POST" enctype="multipart/form-data">
+                    <input type="hidden" name="cedula" value="<?php echo $mi_cedula; ?>">
+                    <input type="hidden" name="empleado" value="<?php echo $mi_nombre; ?>">
+                    <input type="hidden" name="cargo" value="<?php echo $user_data['cargo']; ?>">
+
+                    <div class="mb-3">
+                        <label>TIPO DE PERMISO</label>
+                        <select name="motivo" id="selectMotivo" class="form-select" onchange="validarSoporte()" required>
+                            <option value="">Seleccionar...</option>
+                            <option value="Cita Médica">Cita Médica (Soporte Obligatorio)</option>
+                            <option value="Compensatorio">Compensatorio (Soporte Obligatorio)</option>
+                            <option value="Obligaciones Escolares">Obligaciones Escolares (Soporte Obligatorio)</option>
+                            <option value="Citación Judicial">Citación Judicial (Soporte Obligatorio)</option>
+                            <option value="Licencia por Luto">Licencia por Luto (Soporte Obligatorio)</option>
+                            <option value="Día de la Familia">Día de la Familia</option>
+                            <option value="Vacaciones">Vacaciones</option>
+                            <option value="Licencia No Remunerada">Licencia No Remunerada</option>
+                            <option value="Calamidad Doméstica">Calamidad Doméstica</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label>JEFE (CORREO)</label>
+                        <input type="email" name="correo_jefe" class="form-control" placeholder="jefe@agro-costa.com" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6"><label>FECHA INICIO</label><input type="date" name="fecha_inicio" class="form-control" required></div>
+                        <div class="col-6"><label>FECHA FIN</label><input type="date" name="fecha_fin" class="form-control" required></div>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label>HORA INICIO</label>
+                            <select name="hora_inicio" class="form-select select2-time">
+                                <option value="">Día completo</option>
+                                <?php foreach ($listadoHoras as $hora): ?>
+                                    <option value="<?php echo $hora; ?>"><?php echo $hora; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label>HORA FIN</label>
+                            <select name="hora_fin" class="form-select select2-time">
+                                <option value="">Día completo</option>
+                                <?php foreach ($listadoHoras as $hora): ?>
+                                    <option value="<?php echo $hora; ?>"><?php echo $hora; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label>NOTAS</label>
+                        <textarea name="notas" class="form-control" rows="2" placeholder="Opcional..."></textarea>
+                    </div>
+                    <div class="mb-4">
+                        <label>SOPORTE <span id="asterisco" class="text-danger" style="display:none;">*</span></label>
+                        <input type="file" name="soporte" id="inputSoporte" class="form-control">
+                    </div>
+                    <button type="submit" class="btn btn-cat w-100 py-3">ENVIAR SOLICITUD</button>
+                </form>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <div class="<?php echo ($mi_rol == 'empleado') ? 'col-lg-8' : 'col-12'; ?>">
+            <?php if($mi_rol != 'empleado'): ?>
+            <div class="card card-apple p-4 mb-4">
+                <form method="GET" class="row g-3 align-items-end">
+                    <div class="col-md-3">
+                        <label>COLABORADOR</label>
+                        <select name="nombre_buscar" id="selNombre" class="form-select select2">
+                            <option value="">Todos</option>
+                            <?php foreach($empleados_list as $e): ?>
+                                <option value="<?php echo $e['nombre_completo']; ?>" <?php if($filtro_nombre==$e['nombre_completo']) echo 'selected'; ?>><?php echo $e['nombre_completo']; ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-2"><label>CÉDULA</label><input type="text" name="cedula" class="form-control" value="<?php echo $filtro_cedula; ?>"></div>
+                    <div class="col-md-2"><label>FECHA</label><input type="date" name="fecha" class="form-control" value="<?php echo $filtro_fecha; ?>"></div>
+                    <div class="col-md-5 d-flex gap-2">
+                        <button type="submit" class="btn btn-cat flex-fill">BUSCAR</button>
+                        <a href="index.php" class="btn btn-light border flex-fill text-center d-flex align-items-center justify-content-center fw-bold" style="border-radius:12px;">LIMPIAR</a>
+                        <?php if($mi_rol == 'admin'): ?>
+                            <a href="exportar.php" class="btn btn-success d-flex align-items-center justify-content-center" style="border-radius:12px; width: 50px;" title="Exportar a Excel">
+                                <i class="fas fa-file-excel"></i>
+                            </a>
+                        <?php endif; ?>
+                    </div>
+                </form>
+            </div>
+            <?php endif; ?>
+
+            <div class="card card-apple p-4">
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <?php if($mi_rol != 'empleado'): ?> 
+                                    <th>Colaborador</th> 
+                                    <th>Cédula</th>
+                                    <th>Jefe</th>
+                                <?php endif; ?>
+                                <th>Motivo</th>
+                                <th class="text-center">Soporte</th>
+                                <th>Fecha / Horario</th>
+                                <th>Estado</th>
+                                <th class="text-end">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php 
+                            $sql_final = "SELECT s.* FROM solicitudes s ";
+                            if ($mi_rol != 'empleado') {
+                                $sql_final = "SELECT s.*, u.cedula FROM solicitudes s LEFT JOIN usuarios u ON s.cedula = u.cedula ";
+                            }
+
+                            if($mi_rol == 'empleado'){
+                                $stmt = $db->prepare($sql_final . "WHERE s.cedula = ? ORDER BY s.id DESC");
+                                $stmt->execute([$mi_cedula]);
+                            } else {
+                                $stmt = $db->prepare($sql_final . "$where_panel ORDER BY s.id DESC");
+                                $stmt->execute($params_panel);
+                            }
+
+                            while($row = $stmt->fetch()):
+                                $color = ($row['estado']=='Aprobado')?'#34C759':(($row['estado']=='Rechazado')?'#FF3B30':'#FFCC00');
+                                $txt = ($row['estado']=='Pendiente')?'#000':'#fff';
+                                $h_ini_val = trim($row['hora_inicio']);
+                                $horario_txt = (empty($h_ini_val) || $h_ini_val == '00:00:00' || $h_ini_val == '0:00') ? "Día completo" : $row['hora_inicio']." - ".$row['hora_fin'];
+                            ?>
+                            <tr>
+                                <?php if($mi_rol != 'empleado'): ?> 
+                                    <td class="fw-bold"><?php echo $row['empleado']; ?></td> 
+                                    <td class="text-secondary fw-bold"><?php echo $row['cedula']; ?></td>
+                                    <td class="small text-muted"><?php echo $row['correo_jefe']; ?></td>
+                                <?php endif; ?>
+                                <td class="small fw-medium"><?php echo $row['motivo']; ?></td>
+                                <td class="text-center">
+                                    <?php if(!empty($row['archivo_soporte'])): ?>
+                                        <a href="uploads/<?php echo $row['archivo_soporte']; ?>" target="_blank" class="text-danger"><i class="fas fa-file-pdf fa-lg"></i></a>
+                                    <?php else: ?> - <?php endif; ?>
+                                </td>
+                                <td class="small">
+                                    <strong><?php echo $row['fecha_inicio']; ?></strong> al <strong><?php echo $row['fecha_fin']; ?></strong><br>
+                                    <span class="text-muted"><?php echo $horario_txt; ?></span>
+                                </td>
+                                <td><span class="badge badge-status" style="background-color:<?php echo $color; ?>; color:<?php echo $txt; ?>;"><?php echo $row['estado']; ?></span></td>
+                                <td class="text-end">
+                                    <?php if($mi_rol != 'empleado' && $row['estado'] == 'Pendiente'): ?>
+                                        <a href="gestionar.php?id=<?php echo $row['id']; ?>" class="btn btn-cat btn-sm py-1 px-3">GESTIONAR</a>
+                                    <?php else: ?> <i class="fas fa-check-double text-muted small"></i> <?php endif; ?>
+                                </td>
+                            </tr>
+                            <?php endwhile; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script>
+    $(document).ready(function() { 
+        $('#selNombre, .select2-time').select2({ theme: 'bootstrap-5' }); 
+    });
+
+    function validarSoporte() {
+        var m = document.getElementById('selectMotivo').value;
+        var req = ['Cita Médica', 'Compensatorio', 'Obligaciones Escolares', 'Citación Judicial', 'Licencia por Luto'];
+        var isReq = req.includes(m);
+        document.getElementById('inputSoporte').required = isReq;
+        document.getElementById('asterisco').style.display = isReq ? 'inline' : 'none';
+    }
+</script>
+</body>
+</html>
