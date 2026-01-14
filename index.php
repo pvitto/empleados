@@ -106,10 +106,11 @@ $listadoHoras = obtenerOpcionesHoras();
                         <label>TIPO DE PERMISO</label>
                         <select name="motivo" id="selectMotivo" class="form-select" onchange="validarSoporte()" required>
                             <option value="">Seleccionar...</option>
+                            <option value="Permiso Remunerado">Permiso Remunerado</option>
                             <option value="Cita Médica">Cita Médica (Soporte Obligatorio)</option>
                             <option value="Compensatorio">Compensatorio (Soporte Obligatorio)</option>
                             <option value="Obligaciones Escolares">Obligaciones Escolares (Soporte Obligatorio)</option>
-                            <option value="Citación Judicial">Citación Judicial (Soporte Obligatorio)</option>
+                            <option value="Citación Judicial - Administrativo">Citación Judicial - Administrativo (Soporte Obligatorio)</option>
                             <option value="Licencia por Luto">Licencia por Luto (Soporte Obligatorio)</option>
                             <option value="Día de la Familia">Día de la Familia</option>
                             <option value="Vacaciones">Vacaciones</option>
@@ -265,7 +266,7 @@ $listadoHoras = obtenerOpcionesHoras();
 
     function validarSoporte() {
         var m = document.getElementById('selectMotivo').value;
-        var req = ['Cita Médica', 'Compensatorio', 'Obligaciones Escolares', 'Citación Judicial', 'Licencia por Luto'];
+        var req = ['Cita Médica', 'Compensatorio', 'Obligaciones Escolares', 'Citación Judicial - Administrativo', 'Licencia por Luto'];
         var isReq = req.includes(m);
         document.getElementById('inputSoporte').required = isReq;
         document.getElementById('asterisco').style.display = isReq ? 'inline' : 'none';
