@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $fecha_inicio, 
             $fecha_fin, 
             $h_ini, // Ya convertido a 24h
-            $h_fin, // Ya convertido a 24h
+            $h_fin, // Ya convertido a 24hf
             $nombre_archivo, 
             $correo_jefe, 
             $notas
