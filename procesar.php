@@ -21,48 +21,53 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $fecha_fin    = $_POST['fecha_fin'];
     $notas        = $_POST['notas'] ?? '';
 
-    // --- CORRECCIÓN DE FORMATO DE HORA PARA MYSQL ---
     $hora_inicio_raw = $_POST['hora_inicio'];
     $hora_fin_raw    = $_POST['hora_fin'];
-
-    // Convertimos "8:10 AM" a "08:10:00" (formato 24h que acepta la BD)
     $h_ini = (!empty($hora_inicio_raw)) ? date("H:i:s", strtotime($hora_inicio_raw)) : '00:00:00';
     $h_fin = (!empty($hora_fin_raw)) ? date("H:i:s", strtotime($hora_fin_raw)) : '00:00:00';
-    // ------------------------------------------------
 
-    // PROCESAMIENTO DE ARCHIVO SOPORTE
-    $nombre_archivo = null;
-    $link_soporte_html = "";
-    if (isset($_FILES['soporte']) && $_FILES['soporte']['error'] == 0) {
-        $ext = pathinfo($_FILES['soporte']['name'], PATHINFO_EXTENSION);
-        $nombre_archivo = time() . "_soporte." . $ext;
-        move_uploaded_file($_FILES['soporte']['tmp_name'], "uploads/" . $nombre_archivo);
-        $link_soporte_html = "<p style='color: #ffffff;'><strong>Soporte adjunto:</strong> <a href='https://agro-costa.com/empleados/uploads/$nombre_archivo' style='color: #FFCD00;'>Ver Documento</a></p>";
+    // HORA EXACTA DE ENVÍO
+    $ahora_envio = date("Y-m-d H:i:s");
+
+    // --- PROCESAMIENTO MÚLTIPLE ---
+    $nombres_guardados = [];
+    $html_adjuntos_email = "";
+
+    if (isset($_FILES['soporte']) && count($_FILES['soporte']['name']) > 0) {
+        $total = count($_FILES['soporte']['name']);
+        for ($i = 0; $i < $total; $i++) {
+            if ($_FILES['soporte']['error'][$i] == 0 && !empty($_FILES['soporte']['name'][$i])) {
+                $nombre_original = $_FILES['soporte']['name'][$i];
+                $ext = pathinfo($nombre_original, PATHINFO_EXTENSION);
+                $nuevo_nombre = uniqid() . "__" . $nombre_original; // Separador __
+                $ruta_destino = "uploads/" . $nuevo_nombre;
+                
+                if (move_uploaded_file($_FILES['soporte']['tmp_name'][$i], $ruta_destino)) {
+                    $nombres_guardados[] = $nuevo_nombre;
+                    $url_codificada = "https://agro-costa.com/empleados/uploads/" . rawurlencode($nuevo_nombre);
+                    $html_adjuntos_email .= "<div style='margin-top:5px;'><a href='$url_codificada' style='color: #FFCD00; text-decoration:none;'>📎 $nombre_original</a></div>";
+                }
+            }
+        }
     }
+    $string_archivos_bd = implode(',', $nombres_guardados);
+    if (empty($html_adjuntos_email)) { $html_adjuntos_email = "<span style='color:#777;'>Sin soportes adjuntos.</span>"; }
 
     try {
-        $sql = "INSERT INTO solicitudes (empleado, cedula, cargo, motivo, fecha_inicio, fecha_fin, hora_inicio, hora_fin, archivo_soporte, correo_jefe, notas, estado) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente')";
+        // INCLUIMOS fecha_solicitud EN EL INSERT
+        $sql = "INSERT INTO solicitudes (empleado, cedula, cargo, motivo, fecha_inicio, fecha_fin, hora_inicio, hora_fin, archivo_soporte, correo_jefe, notas, fecha_solicitud, estado) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pendiente')";
         
         $stmt = $db->prepare($sql);
         $stmt->execute([
-            $empleado, 
-            $cedula, 
-            $cargo, 
-            $motivo, 
-            $fecha_inicio, 
-            $fecha_fin, 
-            $h_ini, // Ya convertido a 24h
-            $h_fin, // Ya convertido a 24hf
-            $nombre_archivo, 
-            $correo_jefe, 
-            $notas
+            $empleado, $cedula, $cargo, $motivo, $fecha_inicio, $fecha_fin, $h_ini, $h_fin, 
+            $string_archivos_bd, $correo_jefe, $notas, $ahora_envio
         ]);
         
         $id = $db->lastInsertId();
         $url = "https://agro-costa.com/empleados/gestionar.php?id=" . $id;
 
-        // CONFIGURACIÓN DE ENVÍO DE CORREO (ESTILO CATERPILLAR)
+        // ENVÍO CORREO
         $mail = new PHPMailer(true);
         $mail->isSMTP();
         $mail->Host       = 'smtp.zoho.com'; 
@@ -94,7 +99,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <p><strong>Fechas:</strong> Del $fecha_inicio al $fecha_fin</p>
                         <p><strong>Horario:</strong> " . ($hora_inicio_raw ?: "Día completo") . " a " . ($hora_fin_raw ?: "Día completo") . "</p>
                         <p><strong>Notas:</strong> <em>" . ($notas ?: 'Sin notas') . "</em></p>
-                        $link_soporte_html
+                        <div style='background: #222; padding: 15px; border-radius: 10px; margin-top: 15px;'>
+                            <strong style='color: #FFCD00;'>Soportes Adjuntos:</strong><br>
+                            $html_adjuntos_email
+                        </div>
                         <div style='text-align: center; margin-top: 40px;'>
                             <a href='$url' style='background-color: #FFCD00; color: #000; padding: 18px 30px; text-decoration: none; border-radius: 10px; font-weight: bold; display: inline-block;'>GESTIONAR SOLICITUD</a>
                         </div>
@@ -104,7 +112,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         $mail->send();
         header("Location: index.php?enviado=1");
-    } catch (Exception $e) {
-        die("Error: " . $e->getMessage());
-    }
+    } catch (Exception $e) { die("Error: " . $e->getMessage()); }
 }
+?>

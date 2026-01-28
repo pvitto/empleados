@@ -1,7 +1,5 @@
 <?php
-// FORZAR HORA COLOMBIA
 date_default_timezone_set('America/Bogota');
-
 include('config.php');
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -17,14 +15,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $accion = $_POST['accion']; 
     $obs = $_POST['observacion_jefe'];
 
-    // Obtenemos solicitud
     $stmt = $db->prepare("SELECT s.*, u.correo as correo_user FROM solicitudes s JOIN usuarios u ON s.cedula = u.cedula WHERE s.id = ?");
     $stmt->execute([$id]);
     $sol = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$sol) { die("Error: Solicitud no encontrada."); }
 
-    // Verificar permisos
+    // Validación de seguridad (Dueño o Admin)
     $soy_el_jefe = ($_SESSION['correo'] == $sol['correo_jefe']);
     $soy_admin   = ($_SESSION['rol'] == 'admin');
 
@@ -32,17 +29,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         die("SEGURIDAD: No tienes permiso para gestionar esta solicitud.");
     }
 
-    // --- DATOS DE AUDITORÍA ---
+    // DATOS DE AUDITORÍA
     $ip_cliente = $_SERVER['REMOTE_ADDR'];
     $dispositivo = $_SERVER['HTTP_USER_AGENT'];
-    $ahora = date("Y-m-d H:i:s"); // HORA EXACTA DE GESTIÓN
-    // --------------------------
+    $ahora = date("Y-m-d H:i:s");
+    $quien_gestiona = $_SESSION['nombre']; // Nombre del Jefe/Admin que aprobó
+    // -------------------
 
-    // ACTUALIZAMOS BD CON LA HORA EXACTA
-    $upd = $db->prepare("UPDATE solicitudes SET estado = ?, observacion_jefe = ?, ip_aprobacion = ?, info_dispositivo = ?, fecha_gestion = ? WHERE id = ?");
-    $upd->execute([$accion, $obs, $ip_cliente, $dispositivo, $ahora, $id]);
+    $upd = $db->prepare("UPDATE solicitudes SET estado = ?, observacion_jefe = ?, ip_aprobacion = ?, info_dispositivo = ?, fecha_gestion = ?, usuario_gestor = ? WHERE id = ?");
+    $upd->execute([$accion, $obs, $ip_cliente, $dispositivo, $ahora, $quien_gestiona, $id]);
 
-    // ENVÍO DE CORREO (CÓDIGO IGUAL AL ANTERIOR...)
+    // ENVÍO DE CORREO
     $mail = new PHPMailer(true);
     try {
         $mail->isSMTP();
@@ -84,3 +81,4 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     echo "<script>alert('Solicitud procesada.'); window.location.href='index.php';</script>";
 }
+?>
