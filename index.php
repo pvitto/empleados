@@ -11,12 +11,15 @@ $mi_cedula = $user_data['cedula'];
 $mi_nombre = $_SESSION['nombre'];
 $mi_correo = $user_data['correo'];
 
-// MODO VISTA
+// --- 1. LÓGICA DE MODO DE VISTA ---
 $modo_vista = 'gestion'; 
-if ($mi_rol == 'empleado') { $modo_vista = 'empleado'; } 
-elseif (isset($_GET['modo']) && $_GET['modo'] == 'empleado') { $modo_vista = 'empleado'; }
+if ($mi_rol == 'empleado') {
+    $modo_vista = 'empleado';
+} elseif (isset($_GET['modo']) && $_GET['modo'] == 'empleado') {
+    $modo_vista = 'empleado';
+}
 
-// FILTROS
+// --- 2. LÓGICA DE FILTROS SQL ---
 $where_panel = "WHERE 1=1"; 
 $params_panel = [];
 $filtro_cedula = $_GET['cedula'] ?? "";
@@ -28,6 +31,7 @@ if ($modo_vista == 'gestion') {
         $where_panel .= " AND s.correo_jefe = ?";
         $params_panel[] = $mi_correo;
     }
+    
     if (!empty($filtro_cedula)) {
         $where_panel .= " AND s.cedula LIKE ?"; 
         $params_panel[] = "%$filtro_cedula%";
@@ -42,7 +46,17 @@ if ($modo_vista == 'gestion') {
     }
 }
 
-$empleados_list = $db->query("SELECT DISTINCT nombre_completo FROM usuarios WHERE rol = 'empleado' ORDER BY nombre_completo ASC")->fetchAll();
+// --- 3. LISTA DE EMPLEADOS ---
+$empleados_list = [];
+if ($modo_vista == 'gestion') {
+    if ($mi_rol == 'admin') {
+        $empleados_list = $db->query("SELECT DISTINCT nombre_completo FROM usuarios WHERE rol = 'empleado' ORDER BY nombre_completo ASC")->fetchAll();
+    } elseif ($mi_rol == 'jefe') {
+        $stmtLista = $db->prepare("SELECT DISTINCT empleado as nombre_completo FROM solicitudes WHERE correo_jefe = ? ORDER BY empleado ASC");
+        $stmtLista->execute([$mi_correo]);
+        $empleados_list = $stmtLista->fetchAll();
+    }
+}
 
 function obtenerOpcionesHoras() {
     $opciones = []; $periodos = ['AM', 'PM'];
@@ -89,6 +103,7 @@ $listadoHoras = obtenerOpcionesHoras();
 <nav class="navbar navbar-dark sticky-top mb-4 py-2">
     <div class="container-fluid px-5">
         <a class="navbar-brand d-flex align-items-center" href="#"> AGRO-COSTA </a>
+        
         <div class="d-flex align-items-center">
             <span class="text-white small me-3 d-none d-md-block">Hola, <strong><?php echo $mi_nombre; ?></strong> (<?php echo ucfirst($mi_rol); ?>)</span>
             
@@ -113,6 +128,7 @@ $listadoHoras = obtenerOpcionesHoras();
 </nav>
 
 <div class="container-fluid px-5">
+    
     <div class="mb-4">
         <?php if($modo_vista == 'empleado'): ?>
             <h4 class="fw-bold"><i class="fas fa-user-circle text-warning me-2"></i> Mis Solicitudes Personales</h4>
@@ -124,6 +140,7 @@ $listadoHoras = obtenerOpcionesHoras();
     </div>
 
     <div class="row g-4">
+        
         <?php if($modo_vista == 'empleado'): ?>
         <div class="col-lg-4">
             <div class="card card-apple p-4">
@@ -202,6 +219,7 @@ $listadoHoras = obtenerOpcionesHoras();
         <?php endif; ?>
 
         <div class="<?php echo ($modo_vista == 'empleado') ? 'col-lg-8' : 'col-12'; ?>">
+            
             <?php if($modo_vista == 'gestion'): ?>
             <div class="card card-apple p-4 mb-4">
                 <form method="GET" class="row g-3 align-items-end">
@@ -248,11 +266,10 @@ $listadoHoras = obtenerOpcionesHoras();
                         </thead>
                         <tbody>
                             <?php 
+                            // --- SOLUCIÓN AL PROBLEMA DE DUPLICADOS ---
+                            // Eliminamos el JOIN porque 'solicitudes' ya tiene la cédula.
                             $sql_final = "SELECT s.* FROM solicitudes s ";
-                            if ($modo_vista == 'gestion') {
-                                $sql_final = "SELECT s.*, u.cedula FROM solicitudes s LEFT JOIN usuarios u ON s.cedula = u.cedula ";
-                            }
-
+                            
                             if($modo_vista == 'empleado'){
                                 $stmt = $db->prepare($sql_final . "WHERE s.cedula = ? ORDER BY s.id DESC");
                                 $stmt->execute([$mi_cedula]);
@@ -270,8 +287,8 @@ $listadoHoras = obtenerOpcionesHoras();
                                 $ip_audit = $row['ip_aprobacion'] ?? 'No registrada';
                                 $disp_audit = $row['info_dispositivo'] ?? 'No registrado';
                                 $fecha_audit = $row['fecha_gestion'] ?? 'No registrada';
-                                $fecha_envio = $row['fecha_solicitud'] ?? 'No registrada'; // NUEVO DATO
-                                $correo_jefe_dest = $row['correo_jefe'] ?? 'No registrado'; // NUEVO DATO
+                                $fecha_envio = $row['fecha_solicitud'] ?? 'No registrada';
+                                $correo_jefe_dest = $row['correo_jefe'] ?? 'No registrado';
                                 
                                 $archivos = [];
                                 if(!empty($row['archivo_soporte'])) {
@@ -295,7 +312,9 @@ $listadoHoras = obtenerOpcionesHoras();
                                                 <i class="fas fa-paperclip text-secondary"></i> <?php echo $nombre_bonito; ?>
                                             </a>
                                         <?php endforeach; ?>
-                                    <?php else: ?> <span class="text-muted">-</span> <?php endif; ?>
+                                    <?php else: ?> 
+                                        <span class="text-muted">-</span> 
+                                    <?php endif; ?>
                                 </td>
                                 <td class="small">
                                     <strong><?php echo $row['fecha_inicio']; ?></strong> al <strong><?php echo $row['fecha_fin']; ?></strong><br>
@@ -304,8 +323,13 @@ $listadoHoras = obtenerOpcionesHoras();
                                 <td><span class="badge badge-status" style="background-color:<?php echo $color; ?>; color:<?php echo $txt; ?>;"><?php echo $row['estado']; ?></span></td>
                                 <td class="small text-muted">
                                     <?php 
-                                        if(!empty($row['usuario_gestor'])) { echo '<i class="fas fa-user-check"></i> ' . $row['usuario_gestor']; }
-                                        elseif ($row['estado'] != 'Pendiente') { echo 'Sistema'; } else { echo '-'; }
+                                        if(!empty($row['usuario_gestor'])) {
+                                            echo '<i class="fas fa-user-check"></i> ' . $row['usuario_gestor'];
+                                        } elseif ($row['estado'] != 'Pendiente') {
+                                            echo 'Sistema';
+                                        } else {
+                                            echo '-';
+                                        }
                                     ?>
                                 </td>
                                 <td class="text-end">
@@ -321,8 +345,12 @@ $listadoHoras = obtenerOpcionesHoras();
                                         <?php else: ?> 
                                             <i class="fas fa-check-double text-muted small"></i> 
                                         <?php endif; ?>
+                                    
                                     <?php elseif($modo_vista == 'empleado' && $row['estado'] == 'Pendiente'): ?>
-                                        <a href="eliminar.php?id=<?php echo $row['id']; ?>" class="btn btn-sm btn-outline-danger" onclick="return confirm('¿Estás seguro de que quieres eliminar esta solicitud?');" title="Eliminar Solicitud"><i class="fas fa-trash-alt"></i></a>
+                                        <a href="eliminar.php?id=<?php echo $row['id']; ?>" class="btn btn-sm btn-outline-danger" 
+                                           onclick="return confirm('¿Estás seguro de que quieres eliminar esta solicitud?');" title="Eliminar Solicitud">
+                                            <i class="fas fa-trash-alt"></i>
+                                        </a>
                                     <?php else: ?>
                                         <i class="fas fa-lock text-muted small"></i>
                                     <?php endif; ?>
@@ -360,11 +388,10 @@ $listadoHoras = obtenerOpcionesHoras();
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="border-radius: 20px; border:none; overflow:hidden;">
             <div class="modal-header" style="background-color: #000; color: #FFCD00; border-bottom: 4px solid #FFCD00;">
-                <h5 class="modal-title fw-bold"><i class="fas fa-shield-alt me-2"></i> AUDITORÍA</h5>
+                <h5 class="modal-title fw-bold"><i class="fas fa-shield-alt me-2"></i> AUDITORÍA FORENSE</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body p-4 text-center">
-                
                 <div class="row mb-4">
                     <div class="col-6">
                          <p class="mb-1 fw-bold text-muted small">ENVIADO A (JEFE)</p>
@@ -487,8 +514,6 @@ $listadoHoras = obtenerOpcionesHoras();
         document.getElementById('auditIP').innerText = ip;
         document.getElementById('auditFecha').innerText = fecha ? fecha : 'Sin registro';
         document.getElementById('auditDispRaw').innerText = dispositivo;
-        
-        // DATOS DE ENVÍO
         document.getElementById('auditDestino').innerText = destinatario ? destinatario : 'No registrado';
         document.getElementById('auditFechaEnvio').innerText = fechaEnvio ? fechaEnvio : 'No registrada';
 

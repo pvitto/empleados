@@ -1,5 +1,7 @@
 <?php
+// FORZAR HORA COLOMBIA
 date_default_timezone_set('America/Bogota');
+
 include('config.php');
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -15,13 +17,31 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $accion = $_POST['accion']; 
     $obs = $_POST['observacion_jefe'];
 
+    // 1. OBTENEMOS LA SOLICITUD ACTUAL DE LA BASE DE DATOS
+    // Usamos el JOIN solo para sacar el correo del empleado destinatario
     $stmt = $db->prepare("SELECT s.*, u.correo as correo_user FROM solicitudes s JOIN usuarios u ON s.cedula = u.cedula WHERE s.id = ?");
     $stmt->execute([$id]);
     $sol = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$sol) { die("Error: Solicitud no encontrada."); }
 
-    // Validación de seguridad (Dueño o Admin)
+    // =================================================================================
+    // CANDADO DE SEGURIDAD (ANTI-SOBREESCRITURA)
+    // =================================================================================
+    if ($sol['estado'] != 'Pendiente') {
+        // Si entra aquí, significa que alguien más rápido ya la gestionó.
+        $gestor_previo = $sol['usuario_gestor'] ?? 'Otro administrador';
+        $fecha_previa = $sol['fecha_gestion'] ?? 'recientemente';
+        
+        echo "<script>
+            alert('⛔ ACCIÓN BLOQUEADA:\\n\\nEsta solicitud YA FUE GESTIONADA anteriormente.\\n\\nEstado actual: {$sol['estado']}\\nGestor: $gestor_previo\\nFecha: $fecha_previa\\n\\nNo se pueden realizar cambios sobre una solicitud cerrada.'); 
+            window.location.href='index.php';
+        </script>";
+        exit(); // DETIENE TODO EL CÓDIGO AQUÍ. NO ENVÍA CORREOS NI ACTUALIZA BD.
+    }
+    // =================================================================================
+
+    // 2. VERIFICAR PERMISOS (Si sigue pendiente, verificamos si tienes permiso)
     $soy_el_jefe = ($_SESSION['correo'] == $sol['correo_jefe']);
     $soy_admin   = ($_SESSION['rol'] == 'admin');
 
@@ -29,17 +49,18 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         die("SEGURIDAD: No tienes permiso para gestionar esta solicitud.");
     }
 
-    // DATOS DE AUDITORÍA
+    // --- DATOS DE AUDITORÍA ---
     $ip_cliente = $_SERVER['REMOTE_ADDR'];
     $dispositivo = $_SERVER['HTTP_USER_AGENT'];
-    $ahora = date("Y-m-d H:i:s");
-    $quien_gestiona = $_SESSION['nombre']; // Nombre del Jefe/Admin que aprobó
-    // -------------------
+    $ahora = date("Y-m-d H:i:s"); 
+    $quien_gestiona = $_SESSION['nombre']; 
+    // --------------------------
 
+    // 3. ACTUALIZAMOS BD (SOLO SI PASÓ EL CANDADO)
     $upd = $db->prepare("UPDATE solicitudes SET estado = ?, observacion_jefe = ?, ip_aprobacion = ?, info_dispositivo = ?, fecha_gestion = ?, usuario_gestor = ? WHERE id = ?");
     $upd->execute([$accion, $obs, $ip_cliente, $dispositivo, $ahora, $quien_gestiona, $id]);
 
-    // ENVÍO DE CORREO
+    // 4. ENVÍO DE CORREO
     $mail = new PHPMailer(true);
     try {
         $mail->isSMTP();
@@ -71,6 +92,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         <div style='background-color: #F5F5F7; padding: 25px; border-radius: 20px; border-left: 6px solid $accent;'>
                             <p><strong>ESTADO:</strong> <span style='color: $accent; font-weight:bold;'>$accion</span></p>
                             <p><strong>OBSERVACIONES:</strong><br><em>" . ($obs ?: 'Ninguna') . "</em></p>
+                            <hr>
+                            <p style='font-size:12px; color:#777;'>Gestionado por: <strong>$quien_gestiona</strong></p>
                         </div>
                     </div>
                 </div>
@@ -79,6 +102,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $mail->send();
     } catch (Exception $e) { }
 
-    echo "<script>alert('Solicitud procesada.'); window.location.href='index.php';</script>";
+    echo "<script>alert('Solicitud procesada correctamente.'); window.location.href='index.php';</script>";
 }
 ?>
