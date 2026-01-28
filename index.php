@@ -86,6 +86,11 @@ $listadoHoras = obtenerOpcionesHoras();
         <a class="navbar-brand d-flex align-items-center" href="#"> AGRO-COSTA </a>
         <div class="d-flex align-items-center">
             <span class="text-white small me-3">Usuario: <strong><?php echo $mi_nombre; ?></strong></span>
+            
+            <button type="button" class="btn btn-sm btn-outline-light me-2" data-bs-toggle="modal" data-bs-target="#modalClave">
+                <i class="fas fa-key"></i> Clave
+            </button>
+            
             <a href="logout.php" class="btn btn-sm btn-outline-warning px-3" style="border-radius: 10px;">SALIR</a>
         </div>
     </div>
@@ -225,6 +230,11 @@ $listadoHoras = obtenerOpcionesHoras();
                                 $txt = ($row['estado']=='Pendiente')?'#000':'#fff';
                                 $h_ini_val = trim($row['hora_inicio']);
                                 $horario_txt = (empty($h_ini_val) || $h_ini_val == '00:00:00' || $h_ini_val == '0:00') ? "Día completo" : $row['hora_inicio']." - ".$row['hora_fin'];
+                                
+                                // DATOS PARA AUDITORÍA
+                                $ip_audit = $row['ip_aprobacion'] ?? 'No registrada';
+                                $disp_audit = $row['info_dispositivo'] ?? 'No registrado';
+                                $fecha_audit = $row['fecha_gestion'] ?? 'No registrada';
                             ?>
                             <tr>
                                 <?php if($mi_rol != 'empleado'): ?> 
@@ -246,7 +256,15 @@ $listadoHoras = obtenerOpcionesHoras();
                                 <td class="text-end">
                                     <?php if($mi_rol != 'empleado' && $row['estado'] == 'Pendiente'): ?>
                                         <a href="gestionar.php?id=<?php echo $row['id']; ?>" class="btn btn-cat btn-sm py-1 px-3">GESTIONAR</a>
-                                    <?php else: ?> <i class="fas fa-check-double text-muted small"></i> <?php endif; ?>
+                                    <?php elseif($mi_rol != 'empleado' && !empty($row['ip_aprobacion'])): ?>
+                                        <button class="btn btn-sm btn-outline-dark" 
+                                                onclick='verAuditoria("<?php echo $ip_audit; ?>", "<?php echo htmlspecialchars($disp_audit); ?>", "<?php echo $row['estado']; ?>", "<?php echo $fecha_audit; ?>")'
+                                                title="Ver Auditoría">
+                                            <i class="fas fa-fingerprint"></i>
+                                        </button>
+                                    <?php else: ?> 
+                                        <i class="fas fa-check-double text-muted small"></i> 
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                             <?php endwhile; ?>
@@ -257,7 +275,76 @@ $listadoHoras = obtenerOpcionesHoras();
         </div>
     </div>
 </div>
+
+<div class="modal fade" id="modalClave" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content" style="border-radius: 20px; border:none; overflow:hidden;">
+            <div class="modal-header bg-dark text-white" style="border-bottom: 4px solid #FFCD00;">
+                <h5 class="modal-title fw-bold">Cambiar Contraseña</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form action="cambiar_clave.php" method="POST">
+                    <div class="mb-3">
+                        <label class="fw-bold small text-muted">CONTRASEÑA ACTUAL</label>
+                        <input type="password" name="clave_actual" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold small text-muted">NUEVA CONTRASEÑA</label>
+                        <input type="password" name="clave_nueva" class="form-control" required minlength="4">
+                    </div>
+                    <div class="mb-4">
+                        <label class="fw-bold small text-muted">CONFIRMAR NUEVA</label>
+                        <input type="password" name="clave_confirmar" class="form-control" required minlength="4">
+                    </div>
+                    <button type="submit" class="btn btn-warning w-100 fw-bold">ACTUALIZAR</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalAudit" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 20px; border:none; overflow:hidden;">
+            <div class="modal-header" style="background-color: #000; color: #FFCD00; border-bottom: 4px solid #FFCD00;">
+                <h5 class="modal-title fw-bold"><i class="fas fa-shield-alt me-2"></i> AUDITORÍA</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <p class="mb-1 fw-bold text-muted small">ESTADO</p>
+                <h3 id="auditEstado" class="fw-bold mb-4"></h3>
+
+                <div class="row g-3">
+                    <div class="col-6">
+                        <div class="p-3 bg-light rounded h-100 border">
+                            <i class="fas fa-network-wired fa-lg text-warning mb-2"></i>
+                            <p class="mb-0 small fw-bold text-muted">IP (RED)</p>
+                            <span id="auditIP" class="fw-bold text-dark"></span>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 bg-light rounded h-100 border">
+                            <i class="fas fa-clock fa-lg text-warning mb-2"></i>
+                            <p class="mb-0 small fw-bold text-muted">HORA EXACTA</p>
+                            <span id="auditFecha" class="fw-bold text-dark" style="font-size: 0.9rem;"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-3 p-3 bg-light rounded border">
+                    <i class="fas fa-laptop fa-lg text-warning mb-2"></i>
+                    <p class="mb-0 small fw-bold text-muted">DISPOSITIVO</p>
+                    <h5 id="auditDispBonito" class="fw-bold text-dark mb-1"></h5>
+                    <small id="auditDispRaw" class="text-muted" style="font-size: 0.65rem;"></small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
     $(document).ready(function() { 
@@ -270,6 +357,58 @@ $listadoHoras = obtenerOpcionesHoras();
         var isReq = req.includes(m);
         document.getElementById('inputSoporte').required = isReq;
         document.getElementById('asterisco').style.display = isReq ? 'inline' : 'none';
+    }
+
+    // FUNCIÓN PARA TRADUCIR EL CÓDIGO LARGO A ALGO BONITO
+    // FUNCIÓN MEJORADA PARA TRADUCIR EL CÓDIGO LARGO
+    function detectarDispositivo(ua) {
+        var nombre = "Desconocido";
+        var icono = "fas fa-desktop"; // Icono por defecto PC
+
+        // 1. Detectar Móviles PRIMERO (Para evitar que se confundan con PC)
+        if (/iPhone/i.test(ua)) { return "iPhone - Safari"; }
+        if (/iPad/i.test(ua)) { return "iPad - Safari"; }
+        if (/Android/i.test(ua)) { return "Android - Chrome/Movil"; }
+        if (/Mobile/i.test(ua)) { return "Móvil Genérico"; }
+
+        // 2. Si no es móvil, detectar Sistema Operativo de PC
+        var os = "";
+        if (/Windows/i.test(ua)) os = "Windows PC";
+        else if (/Macintosh/i.test(ua)) os = "Mac";
+        else if (/Linux/i.test(ua)) os = "Linux";
+
+        // 3. Detectar Navegador
+        var browser = "";
+        if (/Edg/i.test(ua)) browser = "Edge";
+        else if (/Chrome/i.test(ua) && !/Edg/i.test(ua)) browser = "Chrome";
+        else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) browser = "Safari";
+        else if (/Firefox/i.test(ua)) browser = "Firefox";
+
+        // Si detectamos SO y Navegador, lo retornamos
+        if (os && browser) {
+            return os + " - " + browser;
+        } else if (os) {
+            return os;
+        } else {
+            return "Dispositivo Desconocido"; // Si falla todo
+        }
+    }
+    function verAuditoria(ip, dispositivo, estado, fecha) {
+        document.getElementById('auditIP').innerText = ip;
+        document.getElementById('auditFecha').innerText = fecha ? fecha : 'Sin registro';
+        
+        // Convertimos el texto largo en algo bonito
+        var nombreBonito = detectarDispositivo(dispositivo);
+        document.getElementById('auditDispBonito').innerText = nombreBonito;
+        // Mantenemos el texto largo abajo en pequeño por seguridad
+        document.getElementById('auditDispRaw').innerText = dispositivo;
+
+        var elEstado = document.getElementById('auditEstado');
+        elEstado.innerText = estado;
+        elEstado.style.color = (estado === 'Aprobado') ? '#34C759' : '#FF3B30';
+
+        var myModal = new bootstrap.Modal(document.getElementById('modalAudit'));
+        myModal.show();
     }
 </script>
 </body>

@@ -6,14 +6,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $usuario = $_POST['usuario'];
     $password = $_POST['password'];
 
+    // Buscamos por nombre de usuario O por correo
     $stmt = $db->prepare("SELECT * FROM usuarios WHERE username = ? OR correo = ?");
     $stmt->execute([$usuario, $usuario]);
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-    if ($user && $password == $user['password']) {
+    // CAMBIO IMPORTANTE: Usamos password_verify para validar la encriptación
+    if ($user && password_verify($password, $user['password'])) {
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['rol']     = $user['rol'];
         $_SESSION['nombre']  = $user['nombre_completo'];
+        $_SESSION['correo']  = $user['correo'];
         header("Location: index.php");
         exit();
     } else {
@@ -49,6 +52,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
         .btn-dark-cat:hover { background-color: #333; color: #fff; }
         .form-control:focus { border-color: #F7931E; box-shadow: 0 0 0 0.25rem rgba(247, 147, 30, 0.2); }
+        .link-olvido { color: #555; font-size: 0.85rem; font-weight: 600; text-decoration: none; transition: 0.3s; }
+        .link-olvido:hover { color: #000; text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -68,6 +73,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             <div class="mb-4">
                 <label class="form-label small fw-bold">Contraseña</label>
                 <input type="password" name="password" class="form-control" placeholder="••••••••" required>
+                <div class="text-end mt-2">
+                    <a href="recuperar.php" class="link-olvido">¿Olvidaste tu contraseña?</a>
+                </div>
             </div>
             <button type="submit" class="btn btn-dark-cat w-100">INGRESAR</button>
         </form>
