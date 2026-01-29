@@ -55,7 +55,7 @@ CREATE TABLE `solicitudes` (
 --
 
 INSERT INTO `solicitudes` (`id`, `empleado`, `cedula`, `cargo`, `correo_jefe`, `motivo`, `estado`, `fecha`, `fecha_inicio`, `fecha_fin`, `hora_inicio`, `hora_fin`, `notas`, `observacion_jefe`, `archivo_soporte`, `ip_aprobacion`, `info_dispositivo`, `fecha_gestion`, `usuario_gestor`, `fecha_solicitud`) VALUES
-(18, 'Paolo Mancini', '1045728002', 'Soporte técnico en sistemas', 'cacosta@agro-costa.com', 'Cita Médica', 'Aprobado', '2026-01-28 16:48:33', '2026-01-30', '2026-01-30', '14:00:00', '18:00:00', '', '', '1769618913_soporte.jpeg', NULL, NULL, NULL, NULL, '2026-01-28 21:02:30');
+(18, 'tttt tttt', '6668688877', 'Soporte técnico en sistemas', 'uuuuu@8888-88888.com', 'Cita Médica', 'Aprobado', '2026-01-28 16:48:33', '2026-01-30', '2026-01-30', '14:00:00', '18:00:00', '', '', '1769618913_soporte.jpeg', NULL, NULL, NULL, NULL, '2026-01-28 21:02:30');
 
 -- --------------------------------------------------------
 
