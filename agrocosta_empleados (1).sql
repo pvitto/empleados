@@ -82,12 +82,12 @@ CREATE TABLE `usuarios` (
 --
 
 INSERT INTO `usuarios` (`id`, `username`, `password`, `nombre_completo`, `rol`, `correo`, `cedula`, `cargo`, `area`, `reset_token`, `reset_expire`) VALUES
-(1, 'Ronaldo', '', 'RRHH Agro-Costa', 'admin', 'rrosado@agro-costa.com', '000000', 'Jefe RRHH', 'Administración', NULL, NULL),
-(2, 'cacosta@agro-costa.com', '', 'Carlos Acosta', 'jefe', 'cacosta@agro-costa.com', '1045707857', 'Jefe de Sistemas', 'DPTO. DE SISTEMAS', NULL, NULL),
-(4, 'admin', '$2y$10$FGJ9bzOhukbnsJjBE3dzdOzrmKy9/JEqdg1Okr1THEg76SzXVEM76', 'admin', 'admin', 'socialagrocosta@gmail.com', '0000001', 'admin', 'admin', NULL, NULL),
-(5, 'Paolo', '$2y$10$kI52nSMuOspqpgb0l4SaEO82jQ9eXa3zlEtDm2JF.1eo0Rbb3EDPu', 'Paolo Mancini', 'empleado', 'pmancini@agro-costa.com', '1045728002', 'Soporte técnico en sistemas', 'DPTO. DE SISTEMAS', NULL, NULL),
-(9, 'demo', '$2y$10$e9EjIWl.Kom0iDR6hByUvO9K59MsH8JJEHlz.2ESWEJ3BXiuLQhVi', 'empleado demo', 'empleado', 'paolomanciniv@gmail.com', '1234', 'indiferente', 'DPTO. DE ', NULL, NULL),
-(10, 'jefedemo', '$2y$10$Ng0S5nmgKhoFywiSFv.Ca.oKC91ryH7dCqaj9ECq0/gNfCqvmEUzu', 'jefe demo', 'jefe', 'paolovittoriomancini15@gmail.com', '56789', 'Jefe de', 'DPTO. DE ', NULL, NULL);
+(1, 'ttttt', '', 'RRHH ttt-ttt', 'admin', 'ttt@jjjj-7777.com', '000000', 'Jefe RRHH', 'Administración', NULL, NULL),
+(2, 'tttt@tt-tt.com', '', 'eeee eeeee', 'jefe', 'aaaaaa@aaaa-aaaa.com', '11111', 'Jefe de Sistemas', 'DPTO. DE SISTEMAS', NULL, NULL),
+(4, 'admin', '$2y$10$FGJ9bzOhukbnsJjBE3dzdOzrmKy9/JEqdg1Okr1THEg76SzXVEM76', 'admin', 'admin', 'sss@gmail.com', '0000001', 'admin', 'admin', NULL, NULL),
+(5, 'pppppp', '$2y$10$kI52nSMuOspqpgb0l4SaEO82jQ9eXa3zlEtDm2JF.1eo0Rbb3EDPu', 'aaaa aaaaa', 'empleado', 'ss@ss-ss.com', '9799878', 'Soporte técnico en sistemas', 'DPTO. DE SISTEMAS', NULL, NULL),
+(9, 'demo', '$2y$10$e9EjIWl.Kom0iDR6hByUvO9K59MsH8JJEHlz.2ESWEJ3BXiuLQhVi', 'empleado demo', 'empleado', 'ss@gmail.com', '1234', 'indiferente', 'DPTO. DE ', NULL, NULL),
+(10, 'jefedemo', '$2y$10$Ng0S5nmgKhoFywiSFv.Ca.oKC91ryH7dCqaj9ECq0/gNfCqvmEUzu', 'jefe demo', 'jefe', 'sssss@gmail.com', '56789', 'Jefe de', 'DPTO. DE ', NULL, NULL);
 
 --
 -- Índices para tablas volcadas
